@@ -1,9 +1,10 @@
 import {
 	BadRequestException,
 	Injectable,
+	InternalServerErrorException,
 	UnauthorizedException
 } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
+import { CreateUserDto } from './dto/register-user.dto';
 import { UpdateAuthDto } from './dto/update-auth.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './entities/user.entity';
@@ -12,6 +13,7 @@ import * as bcryptjs from 'bcryptjs';
 import { LoginUserDto } from './dto/login-user.dto';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './interfaces/jwt-payload';
+import { BackendResponse } from './interfaces/backend-response';
 
 @Injectable()
 export class UserService {
@@ -21,7 +23,9 @@ export class UserService {
 		private jwtService: JwtService
 	) {}
 
-	async register(createUserDto: CreateUserDto): Promise<User> {
+	async register(
+		createUserDto: CreateUserDto
+	): Promise<BackendResponse<User>> {
 		try {
 			const { password, ...userData } = createUserDto;
 			const newUser = new this.user_model({
@@ -33,11 +37,26 @@ export class UserService {
 
 			const { password: pass_temp, ...user } = newUser.toJSON();
 
-			return user;
-		} catch (error) {}
+			return {
+				data: user,
+				createdAt: new Date(),
+				message: 'Usuario creado'
+			};
+		} catch (error) {
+			console.log(error);
+
+			if (error.code === 11000)
+				throw new BadRequestException(
+					'Ya existe una cuenta con ese email/usuario'
+				);
+
+			throw new InternalServerErrorException(
+				'Error interno en el servidor'
+			);
+		}
 	}
 
-	async login(loginUserDto: LoginUserDto) {
+	async login(loginUserDto: LoginUserDto): Promise<BackendResponse<string>> {
 		try {
 			const { email, username } = loginUserDto;
 
@@ -47,9 +66,12 @@ export class UserService {
 				);
 			}
 
-			if (username) await this.isLoginValid(username, loginUserDto);
-			if (email) await this.isLoginValid(email, loginUserDto);
-		} catch (error) {}
+			if (username)
+				return await this.isLoginValid(username, loginUserDto);
+			if (email) return await this.isLoginValid(email, loginUserDto);
+		} catch (error) {
+			throw error;
+		}
 	}
 
 	findAll() {
@@ -68,12 +90,16 @@ export class UserService {
 		return `This action removes a #${id} auth`;
 	}
 
-	async isLoginValid(prop: string, loginUserDto: LoginUserDto) {
+	async isLoginValid(
+		prop: string,
+		loginUserDto: LoginUserDto
+	): Promise<BackendResponse<string>> {
 		try {
-			const propLogIn = await this.user_model.findOne({ prop });
-
-			if (!propLogIn)
+			const propLogIn = await this.user_model.findOne({ username: prop });
+			if (!propLogIn) {
 				throw new UnauthorizedException('Usuario/email incorrectos');
+			}
+
 			if (
 				!bcryptjs.compareSync(loginUserDto.password, propLogIn.password)
 			)
@@ -81,12 +107,17 @@ export class UserService {
 
 			const { password: pass_temp, ...loginData } = propLogIn.toJSON();
 
-			this.getJWTToken({ id: propLogIn.id });
+			const token = this.getJWTToken({ id: propLogIn.id });
+
 			return {
-				...loginData,
-				token: 'fgwe4e5et'
+				data: loginData.username,
+				message: 'Sesión iniciada',
+				token
 			};
-		} catch (error) {}
+		} catch (error) {
+			console.log(error);
+			throw error;
+		}
 	}
 
 	getJWTToken(payload: JwtPayload) {

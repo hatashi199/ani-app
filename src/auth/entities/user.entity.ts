@@ -22,8 +22,7 @@ export class User {
 
 	@Prop({
 		minlength: 8,
-		required: true,
-		match: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+		required: true
 	})
 	password?: string;
 
