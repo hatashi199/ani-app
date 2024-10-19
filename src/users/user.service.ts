@@ -2,10 +2,11 @@ import {
 	BadRequestException,
 	Injectable,
 	InternalServerErrorException,
+	NotFoundException,
 	UnauthorizedException
 } from '@nestjs/common';
-import { CreateUserDto } from './dto/register-user.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
+import { RegisterUserDto } from './dto/register-user.dto';
+import { EditUserDto } from './dto/edit-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './entities/user.entity';
 import { Model } from 'mongoose';
@@ -14,6 +15,7 @@ import { LoginUserDto } from './dto/login-user.dto';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './interfaces/jwt-payload';
 import { BackendResponse } from './interfaces/backend-response';
+import { DeleteUserDto } from './dto/delete-user.dto';
 
 @Injectable()
 export class UserService {
@@ -24,10 +26,10 @@ export class UserService {
 	) {}
 
 	async register(
-		createUserDto: CreateUserDto
+		registerUserDto: RegisterUserDto
 	): Promise<BackendResponse<User>> {
 		try {
-			const { password, ...userData } = createUserDto;
+			const { password, ...userData } = registerUserDto;
 			const newUser = new this.user_model({
 				password: bcryptjs.hashSync(password, 10),
 				...userData
@@ -43,8 +45,6 @@ export class UserService {
 				message: 'Usuario creado'
 			};
 		} catch (error) {
-			console.log(error);
-
 			if (error.code === 11000)
 				throw new BadRequestException(
 					'Ya existe una cuenta con ese email/usuario'
@@ -74,22 +74,77 @@ export class UserService {
 		}
 	}
 
-	findAll() {
-		return `This action returns all auth`;
+	async findAll(): Promise<BackendResponse<User[]>> {
+		const allUsers = await this.user_model.find();
+		const finalData = allUsers.map((user) => {
+			const { password, ...userData } = user.toJSON();
+			return { ...userData };
+		});
+
+		return {
+			data: finalData,
+			message: 'Información enviada'
+		};
 	}
 
-	findOne(id: number) {
-		return `This action returns a #${id} auth`;
+	async findOne(id: string): Promise<BackendResponse<User>> {
+		const user = await this.user_model.findById(id);
+
+		this.userExist(user);
+
+		const { password, ...userData } = user.toJSON();
+		return {
+			data: userData,
+			message: 'Información enviada'
+		};
 	}
 
-	update(id: number, updateAuthDto: UpdateAuthDto) {
-		return `This action updates a #${id} auth`;
+	async editOne(
+		id: string,
+		editUserDto: EditUserDto
+	): Promise<BackendResponse<User>> {
+		try {
+			await this.user_model.findByIdAndUpdate(id, editUserDto);
+
+			const { data } = await this.findOne(id);
+
+			return {
+				data,
+				message: 'Información del usuario actualizada'
+			};
+		} catch (error) {
+			if (error.code === 404)
+				throw new NotFoundException('No existe el usuario');
+			throw new InternalServerErrorException(
+				'Error Interno en el Servidor'
+			);
+		}
 	}
 
-	remove(id: number) {
-		return `This action removes a #${id} auth`;
+	async removeOne(
+		id: string,
+		deleteUserDto: DeleteUserDto
+	): Promise<BackendResponse<string>> {
+		try {
+			await this.user_model.findByIdAndUpdate(id, deleteUserDto);
+
+			const { data } = await this.findOne(id);
+
+			return {
+				data: data.username,
+				deletedAt: new Date(),
+				message: `Usuario ${data.username} desactivado`
+			};
+		} catch (error) {
+			if (error.code === 404)
+				throw new NotFoundException('No existe el usuario');
+			throw new InternalServerErrorException(
+				'Error Interno en el Servidor'
+			);
+		}
 	}
 
+	// Helpers
 	async isLoginValid(
 		prop: string,
 		loginUserDto: LoginUserDto
@@ -123,5 +178,10 @@ export class UserService {
 	getJWTToken(payload: JwtPayload) {
 		const access_token = this.jwtService.sign(payload);
 		return access_token;
+	}
+
+	userExist(user: User): void {
+		if (!user) throw new NotFoundException('No existe el usuario');
+		if (!user.isActive) throw new NotFoundException('No existe el usuario');
 	}
 }

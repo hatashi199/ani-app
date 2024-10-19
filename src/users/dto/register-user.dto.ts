@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
 import { IsDate, IsEmail, IsString, Matches, MinLength } from 'class-validator';
 
-export class CreateUserDto {
+export class RegisterUserDto {
 	@IsString({ message: `'name' debe ser una cadena de caracteres` })
 	name: string;
 
