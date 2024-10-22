@@ -5,17 +5,19 @@ import {
 	NotFoundException,
 	UnauthorizedException
 } from '@nestjs/common';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { EditUserDto } from './dto/edit-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { User } from './entities/user.entity';
 import { Model } from 'mongoose';
 import * as bcryptjs from 'bcryptjs';
-import { LoginUserDto } from './dto/login-user.dto';
 import { JwtService } from '@nestjs/jwt';
 import { JwtPayload } from './interfaces/jwt-payload';
 import { BackendResponse } from './interfaces/backend-response';
-import { DeleteUserDto } from './dto/delete-user.dto';
+import {
+	DeleteUserDto,
+	EditUserDto,
+	LoginUserDto,
+	RegisterUserDto
+} from './dto';
 
 @Injectable()
 export class UserService {
@@ -90,7 +92,8 @@ export class UserService {
 	async findOne(id: string): Promise<BackendResponse<User>> {
 		const user = await this.user_model.findById(id);
 
-		this.userExist(user);
+		if (!user) throw new NotFoundException('No existe el usuario');
+		if (!user.isActive) throw new NotFoundException('No existe el usuario');
 
 		const { password, ...userData } = user.toJSON();
 		return {
@@ -162,7 +165,10 @@ export class UserService {
 
 			const { password: pass_temp, ...loginData } = propLogIn.toJSON();
 
-			const token = this.getJWTToken({ id: propLogIn.id });
+			const token = this.getJWTToken({
+				id: propLogIn.id,
+				role: propLogIn.role
+			});
 
 			return {
 				data: loginData.username,
@@ -178,10 +184,5 @@ export class UserService {
 	getJWTToken(payload: JwtPayload) {
 		const access_token = this.jwtService.sign(payload);
 		return access_token;
-	}
-
-	userExist(user: User): void {
-		if (!user) throw new NotFoundException('No existe el usuario');
-		if (!user.isActive) throw new NotFoundException('No existe el usuario');
 	}
 }

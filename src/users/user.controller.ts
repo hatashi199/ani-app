@@ -5,17 +5,19 @@ import {
 	Body,
 	Patch,
 	Param,
-	Delete,
 	UseGuards,
-	Request
+	Request,
+	UnauthorizedException
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { RegisterUserDto } from './dto/register-user.dto';
-import { EditUserDto } from './dto/edit-user.dto';
-import { LoginUserDto } from './dto/login-user.dto';
-import { DeleteUserDto } from './dto/delete-user.dto';
-import { AuthGuard } from './guards/user-auth.guard';
+import { UserAuthGuard } from './guards/user-auth.guard';
 import { JwtService } from '@nestjs/jwt';
+import {
+	DeleteUserDto,
+	EditUserDto,
+	LoginUserDto,
+	RegisterUserDto
+} from './dto';
 
 @Controller('users')
 export class UserController {
@@ -34,19 +36,25 @@ export class UserController {
 		return this.userService.login(loginUserDto);
 	}
 
+	@UseGuards(UserAuthGuard)
 	@Get()
-	findAll() {
+	findAll(@Request() req: Request) {
+		if (!req['user'].role.includes('admin')) {
+			throw new UnauthorizedException(
+				'No tienes permisos para visualizar la información'
+			);
+		}
+
 		return this.userService.findAll();
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(UserAuthGuard)
 	@Get(':id')
 	findOne(@Param('id') id: string, @Request() req: Request) {
-		//TODO: Que pueda visualizar el usuario sólo el autenticado.
 		return this.userService.findOne(id);
 	}
 
-	@UseGuards(AuthGuard)
+	@UseGuards(UserAuthGuard)
 	@Patch('edit/:id')
 	editOne(@Param('id') id: string, @Body() editUserDto: EditUserDto) {
 		return this.userService.editOne(id, editUserDto);

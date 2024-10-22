@@ -8,7 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class UserAuthGuard implements CanActivate {
 	constructor(private jwtService: JwtService) {}
 
 	async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -26,8 +26,15 @@ export class AuthGuard implements CanActivate {
 			console.log(payload);
 
 			request['user'] = payload;
-		} catch {
-			throw new UnauthorizedException();
+
+			const { id: userId } = request.params;
+
+			if (payload.id !== userId)
+				throw new UnauthorizedException(
+					'No tienes permisos para visualizar la información'
+				);
+		} catch (error) {
+			throw error;
 		}
 		return true;
 	}
