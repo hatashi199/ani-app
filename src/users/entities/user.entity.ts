@@ -33,7 +33,10 @@ export class User {
 	role: string[];
 
 	@Prop({ default: true })
-	isActive: string;
+	isActive: boolean;
+
+	@Prop({ default: null })
+	resetPassCode: string | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

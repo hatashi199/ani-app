@@ -15,6 +15,7 @@ import { JwtService } from '@nestjs/jwt';
 import {
 	DeleteUserDto,
 	EditUserDto,
+	ForgotPassUserDto,
 	LoginUserDto,
 	RegisterUserDto
 } from './dto';
@@ -63,5 +64,10 @@ export class UserController {
 	@Patch('delete/:id')
 	remove(@Param('id') id: string, @Body() deleteUserDto: DeleteUserDto) {
 		return this.userService.removeOne(id, deleteUserDto);
+	}
+
+	@Post('/recover-pass')
+	forgotPass(@Body() forgotPassUserDto: ForgotPassUserDto) {
+		return this.userService.forgotPass(forgotPassUserDto);
 	}
 }

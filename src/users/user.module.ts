@@ -5,6 +5,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './entities/user.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule } from '@nestjs/config';
+import { MailerModule } from 'src/mailer/mailer.module';
 
 @Module({
 	controllers: [UserController],
@@ -16,7 +17,8 @@ import { ConfigModule } from '@nestjs/config';
 			global: true,
 			secret: process.env.JWT_SEED,
 			signOptions: { expiresIn: '1h' }
-		})
+		}),
+		MailerModule
 	]
 })
 export class UserModule {}

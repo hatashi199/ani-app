@@ -15,16 +15,22 @@ import { BackendResponse } from './interfaces/backend-response';
 import {
 	DeleteUserDto,
 	EditUserDto,
+	ForgotPassUserDto,
 	LoginUserDto,
 	RegisterUserDto
 } from './dto';
+import { readFileSync } from 'fs';
+import * as path from 'path';
+import { MailerService } from 'src/mailer/services/mailer.service';
+import { MailData } from 'src/mailer/interfaces/mail-data.interface';
 
 @Injectable()
 export class UserService {
 	constructor(
 		@InjectModel(User.name)
 		private user_model: Model<User>,
-		private jwtService: JwtService
+		private jwtService: JwtService,
+		private mailerService: MailerService
 	) {}
 
 	async register(
@@ -121,6 +127,42 @@ export class UserService {
 			throw new InternalServerErrorException(
 				'Error Interno en el Servidor'
 			);
+		}
+	}
+
+	async forgotPass(
+		forgotPassUserDto: ForgotPassUserDto
+	): Promise<BackendResponse<string>> {
+		try {
+			const user = await this.user_model.findOne({
+				email: forgotPassUserDto.email
+			});
+
+			if (!user) throw new NotFoundException('No existe el usuario');
+			if (!user.isActive)
+				throw new NotFoundException('No existe el usuario');
+
+			const templatePath = path.join(
+				__dirname,
+				'mailer/templates/recover-pass.template.html'
+			);
+			const emailTemplate = readFileSync(templatePath, 'utf8');
+
+			const mailData: MailData = {
+				sender: 'alejandromf199.temp@gmail.com',
+				to: user.email,
+				subject: 'Prueba de email',
+				htmlContent: emailTemplate
+			};
+
+			await this.mailerService.sendMail(mailData, emailTemplate);
+
+			return {
+				data: '',
+				message: 'Código de recuperación enviado a CORREO'
+			};
+		} catch (error) {
+			throw error;
 		}
 	}
 
