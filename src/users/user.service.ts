@@ -15,12 +15,12 @@ import { BackendResponse } from './interfaces/backend-response';
 import {
 	DeleteUserDto,
 	EditUserDto,
-	ForgotPassUserDto,
+	PassCodeDto,
 	LoginUserDto,
-	RegisterUserDto
+	RegisterUserDto,
+	PassCodeValidateDto,
+	ResetPassDto
 } from './dto';
-import { readFileSync } from 'fs';
-import * as path from 'path';
 import { MailerService } from 'src/mailer/services/mailer.service';
 import { MailData } from 'src/mailer/interfaces/mail-data.interface';
 
@@ -66,7 +66,7 @@ export class UserService {
 
 	async login(loginUserDto: LoginUserDto): Promise<BackendResponse<string>> {
 		try {
-			const { email, username } = loginUserDto;
+			const { username, email, password } = loginUserDto;
 
 			if (!email && !username) {
 				throw new BadRequestException(
@@ -74,9 +74,40 @@ export class UserService {
 				);
 			}
 
-			if (username)
-				return await this.isLoginValid(username, loginUserDto);
-			if (email) return await this.isLoginValid(email, loginUserDto);
+			if (email && username) {
+				throw new BadRequestException(
+					'No está permitido hacer inicio de sesión con email y usuario a la vez'
+				);
+			}
+
+			const loginQuery = {
+				...(username ? { username } : {}),
+				...(email ? { email } : {})
+			};
+
+			const propLogin = await this.user_model.findOne(loginQuery);
+
+			if (!propLogin) {
+				throw new UnauthorizedException('Usuario/email incorrectos');
+			}
+
+			if (!bcryptjs.compareSync(password, propLogin.password))
+				throw new UnauthorizedException('Contraseña incorrecta');
+
+			const { password: pass_temp, ...loginData } = propLogin.toJSON();
+
+			const token = this.getJWTToken({
+				id: propLogin.id,
+				role: propLogin.role
+			});
+
+			return {
+				data:
+					(username && loginData.username) ||
+					(email && loginData.email),
+				message: 'Sesión iniciada',
+				token
+			};
 		} catch (error) {
 			throw error;
 		}
@@ -130,36 +161,87 @@ export class UserService {
 		}
 	}
 
-	async forgotPass(
-		forgotPassUserDto: ForgotPassUserDto
-	): Promise<BackendResponse<string>> {
+	async passCode(passCodeDto: PassCodeDto): Promise<BackendResponse<null>> {
 		try {
 			const user = await this.user_model.findOne({
-				email: forgotPassUserDto.email
+				email: passCodeDto.email
 			});
 
 			if (!user) throw new NotFoundException('No existe el usuario');
 			if (!user.isActive)
 				throw new NotFoundException('No existe el usuario');
 
-			const templatePath = path.join(
-				__dirname,
-				'mailer/templates/recover-pass.template.html'
-			);
-			const emailTemplate = readFileSync(templatePath, 'utf8');
-
 			const mailData: MailData = {
 				sender: 'alejandromf199.temp@gmail.com',
 				to: user.email,
-				subject: 'Prueba de email',
-				htmlContent: emailTemplate
+				subject: 'Prueba de email'
 			};
 
-			await this.mailerService.sendMail(mailData, emailTemplate);
+			const resetPassCode = this.getJWTToken({
+				id: user.id,
+				role: user.role
+			});
+
+			await this.user_model.findByIdAndUpdate(user.id, { resetPassCode });
+			await this.mailerService.sendMail(mailData, resetPassCode);
 
 			return {
-				data: '',
+				data: null,
 				message: 'Código de recuperación enviado a CORREO'
+			};
+		} catch (error) {
+			throw error;
+		}
+	}
+
+	async passCodeValidate(
+		passCodeValidate: PassCodeValidateDto
+	): Promise<BackendResponse<boolean>> {
+		try {
+			const user = await this.user_model.findOne({
+				resetPassCode: passCodeValidate.resetPassCode
+			});
+
+			if (!user) throw new NotFoundException('No existe el usuario');
+			if (!user.isActive)
+				throw new NotFoundException('No existe el usuario');
+			return {
+				data: true,
+				message: 'Código válido'
+			};
+		} catch (error) {
+			throw error;
+		}
+	}
+
+	async resetPass(
+		resetPassDto: ResetPassDto
+	): Promise<BackendResponse<boolean>> {
+		try {
+			const user = await this.user_model.findOne({
+				email: resetPassDto.email
+			});
+
+			if (!user) throw new NotFoundException('No existe el usuario');
+			if (!user.isActive)
+				throw new NotFoundException('No existe el usuario');
+
+			const isPassCodeValid = this.jwtService.verify(user.resetPassCode, {
+				secret: process.env.JWT_SEED
+			});
+
+			if (!isPassCodeValid) {
+				throw new BadRequestException('Token no válido o expirado');
+			}
+
+			await this.user_model.findOneAndUpdate(
+				{ email: resetPassDto.email },
+				{ password: bcryptjs.hashSync(resetPassDto.newPassword, 10) }
+			);
+
+			return {
+				data: null,
+				message: 'La contraseña ha sido actualizada correctamente'
 			};
 		} catch (error) {
 			throw error;
@@ -190,39 +272,6 @@ export class UserService {
 	}
 
 	// Helpers
-	async isLoginValid(
-		prop: string,
-		loginUserDto: LoginUserDto
-	): Promise<BackendResponse<string>> {
-		try {
-			const propLogIn = await this.user_model.findOne({ username: prop });
-			if (!propLogIn) {
-				throw new UnauthorizedException('Usuario/email incorrectos');
-			}
-
-			if (
-				!bcryptjs.compareSync(loginUserDto.password, propLogIn.password)
-			)
-				throw new UnauthorizedException('Contraseña incorrecta');
-
-			const { password: pass_temp, ...loginData } = propLogIn.toJSON();
-
-			const token = this.getJWTToken({
-				id: propLogIn.id,
-				role: propLogIn.role
-			});
-
-			return {
-				data: loginData.username,
-				message: 'Sesión iniciada',
-				token
-			};
-		} catch (error) {
-			console.log(error);
-			throw error;
-		}
-	}
-
 	getJWTToken(payload: JwtPayload) {
 		const access_token = this.jwtService.sign(payload);
 		return access_token;

@@ -15,9 +15,11 @@ import { JwtService } from '@nestjs/jwt';
 import {
 	DeleteUserDto,
 	EditUserDto,
-	ForgotPassUserDto,
+	PassCodeDto,
 	LoginUserDto,
-	RegisterUserDto
+	RegisterUserDto,
+	PassCodeValidateDto,
+	ResetPassDto
 } from './dto';
 
 @Controller('users')
@@ -35,6 +37,21 @@ export class UserController {
 	@Post('/login')
 	login(@Body() loginUserDto: LoginUserDto) {
 		return this.userService.login(loginUserDto);
+	}
+
+	@Post('/recover-pass')
+	passCode(@Body() passCodeDto: PassCodeDto) {
+		return this.userService.passCode(passCodeDto);
+	}
+
+	@Post('/pass-code-validate')
+	passCodeValidate(@Body() passCodeValidateDto: PassCodeValidateDto) {
+		return this.userService.passCodeValidate(passCodeValidateDto);
+	}
+
+	@Patch('/reset-pass')
+	resetPass(@Body() resetPassDto: ResetPassDto) {
+		return this.userService.resetPass(resetPassDto);
 	}
 
 	@UseGuards(UserAuthGuard)
@@ -64,10 +81,5 @@ export class UserController {
 	@Patch('delete/:id')
 	remove(@Param('id') id: string, @Body() deleteUserDto: DeleteUserDto) {
 		return this.userService.removeOne(id, deleteUserDto);
-	}
-
-	@Post('/recover-pass')
-	forgotPass(@Body() forgotPassUserDto: ForgotPassUserDto) {
-		return this.userService.forgotPass(forgotPassUserDto);
 	}
 }
