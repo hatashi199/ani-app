@@ -8,7 +8,7 @@ import * as path from 'path';
 export class MailerService {
 	constructor() {}
 
-	async sendMail(mailData: MailData, recoverCode?: string) {
+	async sendMail(mailData: MailData, recoverCode?: string): Promise<boolean> {
 		try {
 			const apiInstance = new Brevo.TransactionalEmailsApi();
 
@@ -41,9 +41,7 @@ export class MailerService {
 
 			return true;
 		} catch (error) {
-			console.log(error);
-
-			throw new BadRequestException('Error al enviar el email');
+			throw new BadRequestException('Error al enviar el email', error);
 		}
 	}
 }

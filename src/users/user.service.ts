@@ -40,6 +40,7 @@ export class UserService {
 			const { password, ...userData } = registerUserDto;
 			const newUser = new this.user_model({
 				password: bcryptjs.hashSync(password, 10),
+				createdAt: new Date(),
 				...userData
 			});
 
@@ -49,7 +50,6 @@ export class UserService {
 
 			return {
 				data: user,
-				createdAt: new Date(),
 				message: 'Usuario creado'
 			};
 		} catch (error) {
@@ -87,12 +87,14 @@ export class UserService {
 
 			const propLogin = await this.user_model.findOne(loginQuery);
 
-			if (!propLogin) {
-				throw new UnauthorizedException('Usuario/email incorrectos');
+			if (
+				!propLogin ||
+				!bcryptjs.compareSync(password, propLogin.password)
+			) {
+				throw new UnauthorizedException(
+					'Usuario/email o contraseña incorrectos'
+				);
 			}
-
-			if (!bcryptjs.compareSync(password, propLogin.password))
-				throw new UnauthorizedException('Contraseña incorrecta');
 
 			const { password: pass_temp, ...loginData } = propLogin.toJSON();
 
@@ -129,8 +131,9 @@ export class UserService {
 	async findOne(id: string): Promise<BackendResponse<User>> {
 		const user = await this.user_model.findById(id);
 
-		if (!user) throw new NotFoundException('No existe el usuario');
-		if (!user.isActive) throw new NotFoundException('No existe el usuario');
+		if (!user || !user.isActive) {
+			throw new NotFoundException('No existe el usuario');
+		}
 
 		const { password, ...userData } = user.toJSON();
 		return {
@@ -167,9 +170,9 @@ export class UserService {
 				email: passCodeDto.email
 			});
 
-			if (!user) throw new NotFoundException('No existe el usuario');
-			if (!user.isActive)
+			if (!user || !user.isActive) {
 				throw new NotFoundException('No existe el usuario');
+			}
 
 			const mailData: MailData = {
 				sender: 'alejandromf199.temp@gmail.com',
@@ -202,9 +205,10 @@ export class UserService {
 				resetPassCode: passCodeValidate.resetPassCode
 			});
 
-			if (!user) throw new NotFoundException('No existe el usuario');
-			if (!user.isActive)
+			if (!user || !user.isActive) {
 				throw new NotFoundException('No existe el usuario');
+			}
+
 			return {
 				data: true,
 				message: 'Código válido'
@@ -222,9 +226,9 @@ export class UserService {
 				email: resetPassDto.email
 			});
 
-			if (!user) throw new NotFoundException('No existe el usuario');
-			if (!user.isActive)
+			if (!user || !user.isActive) {
 				throw new NotFoundException('No existe el usuario');
+			}
 
 			const isPassCodeValid = this.jwtService.verify(user.resetPassCode, {
 				secret: process.env.JWT_SEED
@@ -253,13 +257,15 @@ export class UserService {
 		deleteUserDto: DeleteUserDto
 	): Promise<BackendResponse<string>> {
 		try {
-			await this.user_model.findByIdAndUpdate(id, deleteUserDto);
+			await this.user_model.findByIdAndUpdate(id, {
+				isActive: deleteUserDto.isActive,
+				deletedAt: new Date()
+			});
 
 			const { data } = await this.findOne(id);
 
 			return {
 				data: data.username,
-				deletedAt: new Date(),
 				message: `Usuario ${data.username} desactivado`
 			};
 		} catch (error) {

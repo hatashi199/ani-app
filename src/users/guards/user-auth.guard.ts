@@ -1,7 +1,9 @@
 import {
+	BadRequestException,
 	CanActivate,
 	ExecutionContext,
 	Injectable,
+	InternalServerErrorException,
 	UnauthorizedException
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -16,26 +18,25 @@ export class UserAuthGuard implements CanActivate {
 		const token = this.extractTokenFromHeader(request);
 
 		if (!token) {
-			throw new UnauthorizedException('No existe un bearer token');
+			throw new UnauthorizedException('Se requiere un bearer token');
 		}
 
 		try {
 			const payload = await this.jwtService.verifyAsync(token, {
 				secret: process.env.JWT_SEED
 			});
-			console.log(payload);
 
 			request['user'] = payload;
-
-			const { id: userId } = request.params;
-
-			if (payload.id !== userId)
-				throw new UnauthorizedException(
-					'No tienes permisos para visualizar la información'
-				);
 		} catch (error) {
+			const jwtExpired = new Error(error);
+
+			if (jwtExpired.message.includes('TokenExpiredError: jwt expired')) {
+				throw new BadRequestException('Token caducado', error);
+			}
+
 			throw error;
 		}
+
 		return true;
 	}
 

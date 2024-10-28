@@ -25,5 +25,9 @@ export class EditUserDto {
 
 	@IsOptional()
 	@IsString({ message: `'avatar' debe ser una cadena de caracteres` })
-	avatar: string;
+	avatar?: string;
+
+	@IsOptional()
+	@IsString({ message: `'description' debe ser una cadena de caracteres` })
+	description?: string;
 }

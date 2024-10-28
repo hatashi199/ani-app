@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserAuthGuard } from './guards/user-auth.guard';
-import { JwtService } from '@nestjs/jwt';
 import {
 	DeleteUserDto,
 	EditUserDto,
@@ -21,13 +20,27 @@ import {
 	PassCodeValidateDto,
 	ResetPassDto
 } from './dto';
+import { UserAdminGuard } from './guards/user-admin.guard';
 
 @Controller('users')
 export class UserController {
-	constructor(
-		private readonly userService: UserService,
-		private readonly jwtService: JwtService
-	) {}
+	constructor(private readonly userService: UserService) {}
+
+	@UseGuards(UserAuthGuard, UserAdminGuard)
+	@Get()
+	findAll() {
+		return this.userService.findAll();
+	}
+
+	@UseGuards(UserAuthGuard)
+	@Get(':id')
+	findOne(@Param('id') id: string, @Request() req: Request) {
+		if (req['user'].id !== id && !req['user'].role.includes('admin'))
+			throw new UnauthorizedException(
+				'No tienes permisos para realizar esta acción'
+			);
+		return this.userService.findOne(id);
+	}
 
 	@Post('/register')
 	register(@Body() createUserDto: RegisterUserDto) {
@@ -55,29 +68,20 @@ export class UserController {
 	}
 
 	@UseGuards(UserAuthGuard)
-	@Get()
-	findAll(@Request() req: Request) {
-		if (!req['user'].role.includes('admin')) {
-			throw new UnauthorizedException(
-				'No tienes permisos para visualizar la información'
-			);
-		}
-
-		return this.userService.findAll();
-	}
-
-	@UseGuards(UserAuthGuard)
-	@Get(':id')
-	findOne(@Param('id') id: string, @Request() req: Request) {
-		return this.userService.findOne(id);
-	}
-
-	@UseGuards(UserAuthGuard)
 	@Patch('edit/:id')
-	editOne(@Param('id') id: string, @Body() editUserDto: EditUserDto) {
+	editOne(
+		@Param('id') id: string,
+		@Body() editUserDto: EditUserDto,
+		@Request() req: Request
+	) {
+		if (req['user'].id !== id)
+			throw new UnauthorizedException(
+				'No tienes permisos para realizar esta acción'
+			);
 		return this.userService.editOne(id, editUserDto);
 	}
 
+	@UseGuards(UserAuthGuard, UserAdminGuard)
 	@Patch('delete/:id')
 	remove(@Param('id') id: string, @Body() deleteUserDto: DeleteUserDto) {
 		return this.userService.removeOne(id, deleteUserDto);

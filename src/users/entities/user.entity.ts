@@ -26,7 +26,7 @@ export class User {
 	})
 	password?: string;
 
-	@Prop()
+	@Prop({ default: '' })
 	description: string;
 
 	@Prop({ type: [String], default: ['user'] })
@@ -37,6 +37,12 @@ export class User {
 
 	@Prop({ default: null })
 	resetPassCode: string | null;
+
+	@Prop()
+	createdAt: Date | null;
+
+	@Prop({ default: null })
+	deletedAt: Date | null;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
